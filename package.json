@@ -15,7 +15,9 @@
     "build:local": "node scripts/export-local.mjs",
     "start:local": "node --env-file-if-exists=.env.local .sites-runtime/local/server.mjs",
     "lab:connect": "node scripts/connect-lab.mjs",
-    "test": "node scripts/test-unit.mjs"
+    "test": "node scripts/test-unit.mjs",
+    "start:mac": "node --env-file-if-exists=.env.local scripts/start-mac.mjs",
+    "gpu:connect": "node scripts/connect-lab.mjs --translation-only"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

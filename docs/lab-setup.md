@@ -1,5 +1,7 @@
 # ラボ内で1つのGPU・モデルを共有する
 
+MacでWebサーバーを動かし、翻訳だけGPUを共有する場合は [Macでの起動手順](mac-setup.md) を参照してください。以下はWebサーバーもGPU上で共有する構成の手順です。
+
 ## おすすめの構成
 
 GPUサーバーに **Ollamaを1プロセス、モデルを1組、Citepeekを1プロセス** 用意します。利用者はCitepeekのWebポートを各自のPCにSSH転送します。各ユーザーが別々に `ollama serve` や `ollama pull` を実行する必要はありません。
