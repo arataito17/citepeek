@@ -10,8 +10,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from threading import BoundedSemaphore
 
-SITE = 'http://localhost:8765'
-ORIGINS = {SITE, 'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:8765'}
+ORIGINS = {'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:8765', 'http://localhost:8765'}
 ORIGINS.update(x.strip() for x in os.getenv('CITEPEEK_ALLOWED_ORIGINS', '').split(',') if x.strip())
 OLLAMA = os.getenv('CITEPEEK_OLLAMA_URL', 'http://127.0.0.1:11434').rstrip('/')
 if urlsplit(OLLAMA).hostname not in {'localhost', '127.0.0.1', '::1'}:

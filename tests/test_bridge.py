@@ -7,6 +7,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 
 class FakeOllama(BaseHTTPRequestHandler):
     last = None
@@ -34,12 +35,17 @@ class BridgeTests(unittest.TestCase):
     def test_health_filters_cloud(self):
         with urlopen(self.base+'/api/health') as r: self.assertEqual(json.load(r)['models'],['translategemma:4b'])
     def test_cors_translation_prompt_and_response(self):
-        req=Request(self.base+'/api/translate',data=json.dumps({'text':'Test abstract.','model':'translategemma:4b'}).encode(),headers={'Content-Type':'application/json','Origin':self.module.SITE})
+        origin='http://127.0.0.1:8765'
+        req=Request(self.base+'/api/translate',data=json.dumps({'text':'Test abstract.','model':'translategemma:4b'}).encode(),headers={'Content-Type':'application/json','Origin':origin})
         with urlopen(req) as r:
-            self.assertEqual(r.headers['Access-Control-Allow-Origin'],self.module.SITE)
+            self.assertEqual(r.headers['Access-Control-Allow-Origin'],origin)
             self.assertEqual(json.load(r)['translation'],'これは翻訳のテストです。')
         self.assertFalse(FakeOllama.last['stream'])
         self.assertTrue(FakeOllama.last['messages'][0]['content'].endswith('\n\n\nTest abstract.'))
+    def test_default_origins_are_local(self):
+        for origin in self.module.ORIGINS:
+            self.assertEqual(urlsplit(origin).scheme,'http')
+            self.assertIn(urlsplit(origin).hostname,{'127.0.0.1','localhost'})
     def test_untrusted_origin_is_rejected(self):
         with self.assertRaises(HTTPError) as e: urlopen(Request(self.base+'/api/health',headers={'Origin':'https://untrusted.example'}))
         self.assertEqual(e.exception.code,403)

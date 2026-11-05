@@ -7,7 +7,7 @@ const root=path.dirname(fileURLToPath(import.meta.url));
 const port=Number(process.env.CITEPEEK_PORT||8765);
 const ollama=process.env.CITEPEEK_OLLAMA_URL||'http://127.0.0.1:11434';
 if(!['localhost','127.0.0.1','[::1]'].includes(new URL(ollama).hostname))throw Error('Use loopback or an SSH tunnel for Ollama.');
-const origins=new Set(['http://localhost:8765',`http://127.0.0.1:${port}`,`http://localhost:${port}`]);
+const origins=new Set([`http://127.0.0.1:${port}`,`http://localhost:${port}`]);
 const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'};
 async function models(){const r=await fetch(new URL('/api/tags',ollama),{signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('Ollama is unavailable');const b=await r.json();return(b.models||[]).filter(m=>!m.remote_host&&!m.remote_model&&!m.name.includes('cloud')).map(m=>m.name);}
 async function body(req){let size=0;const parts=[];for await(const p of req){size+=p.length;if(size>80000)throw Error('Request too large');parts.push(p);}return JSON.parse(Buffer.concat(parts).toString());}
