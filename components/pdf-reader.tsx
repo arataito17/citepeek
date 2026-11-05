@@ -3,6 +3,7 @@ import {useEffect,useRef,useState} from "react";
 import {LoaderCircle,Minus,Plus,ScanLine} from "lucide-react";
 import type {Reference} from "@/lib/references";
 import {citationTokens,clampZoom,cleanSelection,ZOOM_STEP,ZOOM_GESTURE_GAIN} from "@/lib/pdf-interactions";
+import {bindPdfSelection} from "@/lib/pdf-selection";
 const CDN="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";
 let module:Promise<any>|undefined;
 export const loadPdf=()=>module||=import(/* @vite-ignore */ CDN).then(m=>{m.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";return m;});
@@ -78,7 +79,7 @@ export default function PdfReader({doc,page,zoom,refs,active,onZoom,onSelect,onT
   },[]);
   useEffect(()=>{lastSelection.current="";},[doc,page]);
   useEffect(()=>{
-    let cancelled=false,task:any,textLayer:any;
+    let cancelled=false,task:any,textLayer:any,unbindSelection:(()=>void)|undefined;
     async function render(){
       setBusy(true);setError("");setSpots([]);spotsRef.current=[];stopHover();
       try{
@@ -93,7 +94,7 @@ export default function PdfReader({doc,page,zoom,refs,active,onZoom,onSelect,onT
           anchor.current={x:Math.max(0,Math.min(1,(x-oldBox.left)/oldBox.width)),y:Math.max(0,Math.min(1,(y-oldBox.top)/oldBox.height)),screenX:viewBox.width/2,screenY:viewBox.height/2};
         }
         const base=pg.getViewport({scale:1}),view=pg.getViewport({scale:Math.max(260,width)/base.width*zoom}),ratio=Math.min(devicePixelRatio||1,2);
-        const cv=document.createElement('canvas'),container=document.createElement('div');container.className='textLayer';container.setAttribute('aria-label','選択できるPDF本文');
+        const cv=document.createElement('canvas'),container=document.createElement('div');container.className='textLayer';container.tabIndex=0;container.setAttribute('aria-label','選択できるPDF本文');
         cv.width=Math.floor(view.width*ratio);cv.height=Math.floor(view.height*ratio);cv.style.width=`${view.width}px`;cv.style.height=`${view.height}px`;cv.setAttribute('aria-hidden','true');
         container.style.setProperty('--scale-factor',String(view.scale));
         task=pg.render({canvasContext:cv.getContext('2d'),viewport:view,transform:[ratio,0,0,ratio,0,0]});
@@ -102,6 +103,7 @@ export default function PdfReader({doc,page,zoom,refs,active,onZoom,onSelect,onT
         // Commit matching canvas and text together; cancelled renders never touch the visible surface.
         sheet.current!.style.width=`${view.width}px`;sheet.current!.style.height=`${view.height}px`;setSize({width:view.width,height:view.height});
         surface.current!.replaceChildren(cv,container);await frame();if(cancelled)return;
+        unbindSelection=bindPdfSelection(container,viewport.current!);
         if(savedSelection){
           const nodes=textNodes(container),find=(offset:number)=>nodes.find(n=>n.start<=offset&&n.end>=offset);
           const a=find(savedSelection.anchor),b=find(savedSelection.focus),current=window.getSelection();
@@ -143,7 +145,7 @@ export default function PdfReader({doc,page,zoom,refs,active,onZoom,onSelect,onT
       finally{if(!cancelled)setBusy(false);}
     }
     if(width>0)void render();
-    return()=>{cancelled=true;task?.cancel?.();textLayer?.cancel?.();clearTimeout(hoverTimer.current);};
+    return()=>{cancelled=true;unbindSelection?.();task?.cancel?.();textLayer?.cancel?.();clearTimeout(hoverTimer.current);};
   },[doc,page,zoom,refs,width]);
   return <section className="pdf-pane" ref={pane} aria-label="PDFリーダー">
     <div className="pdf-toolbar"><span className="pdf-gesture-hint">ピンチ / ⌘・Ctrl＋ホイールで拡大縮小</span><div className="pdf-zoom-controls"><button className="icon-button" aria-label="PDFを縮小" disabled={zoom<=.5} onClick={()=>requestZoom(zoomValue.current-ZOOM_STEP)}><Minus size={15}/></button><output aria-label="PDFの倍率">{Math.round(zoom*100)}%</output><button className="icon-button" aria-label="PDFを拡大" disabled={zoom>=3} onClick={()=>requestZoom(zoomValue.current+ZOOM_STEP)}><Plus size={15}/></button><button className="text-button fit-page" onClick={()=>requestZoom(1)}><ScanLine size={14}/>幅に合わせる</button></div></div>
