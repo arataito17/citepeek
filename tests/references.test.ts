@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {citationNumbers,extractReferences,identifiers,orderedLines} from '../lib/references.ts';
+const line=(text:string,page=1)=>({text,page,x:30,y:600,width:200,height:10});
+test('citation groups, ranges, deduplication, invalid range guard',()=>{assert.deepEqual(citationNumbers('[1, 3–5, 3]'),[1,3,4,5]);assert.deepEqual(citationNumbers('[99–1]'),[]);assert.deepEqual(citationNumbers('[1–9999]'),[]);});
+test('reference section, continuation, appendix boundary',()=>{const value=extractReferences([line('Introduction'),line('[1] a body citation'),line('References',3),line('[1] A. Author. A scientific paper.',3),line('Proceedings of a conference. 2023.',3),line('[2] B. Author. Another study.',4),line('Appendix A',4),line('Unrelated text',4)]);assert.equal(value.length,2);assert.equal(value[0].page,3);assert.equal(value[0].text,'A. Author. A scientific paper. Proceedings of a conference. 2023.');assert.equal(value[1].text,'B. Author. Another study.');});
+test('no bibliography is preferable to a fabricated one',()=>{assert.deepEqual(extractReferences([line('An idea [1].'),line('[1] may refer to many things.')]),[]);});
+test('DOI and arXiv identifiers',()=>{assert.equal(identifiers('https://doi.org/10.1038/s41586-021-03819-2.').doi,'10.1038/s41586-021-03819-2');assert.equal(identifiers('arXiv:1706.03762').arxiv,'1706.03762');assert.equal(identifiers('https://arxiv.org/abs/1810.04805v2').arxiv,'1810.04805v2');});
+test('two columns preserve independent reading order',()=>{const items=[];for(let n=0;n<10;n++){items.push({str:`L${n}`,width:100,transform:[10,0,0,10,30,700-n*15]});items.push({str:`R${n}`,width:100,transform:[10,0,0,10,320,700-n*15]});}const value=orderedLines(items,600,1);assert.deepEqual(value.map(l=>l.text),[...Array.from({length:10},(_,n)=>`L${n}`),...Array.from({length:10},(_,n)=>`R${n}`)]);});

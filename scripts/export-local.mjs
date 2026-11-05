@@ -1,0 +1,10 @@
+import {build} from 'esbuild';
+import {mkdir,copyFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+const output=path.resolve(process.argv[2]||'.sites-runtime/local');
+await mkdir(output,{recursive:true});
+await build({entryPoints:['local/entry.tsx'],outfile:path.join(output,'reader.js'),bundle:true,format:'esm',platform:'browser',target:'es2022',minify:true,alias:{'@':process.cwd()},define:{'process.env.NODE_ENV':'"production"'}});
+await build({entryPoints:['lib/papers.ts'],outfile:path.join(output,'papers.mjs'),bundle:true,format:'esm',platform:'node',target:'node22',minify:false});
+for(const [src,dest]of[['local/server.mjs','server.mjs'],['public/translation-worker.js','translation-worker.js'],['public/favicon.svg','favicon.svg'],['companion/citepeek_bridge.py','citepeek_bridge.py']])await copyFile(src,path.join(output,dest));
+await writeFile(path.join(output,'index.html'),'<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Citepeek — 引用の先を、その場で読む</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/reader.css"><div id="root"></div><script type="module" src="/reader.js"></script></html>');
+console.log(output);
