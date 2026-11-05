@@ -1,7 +1,8 @@
 import { identifiers, guessTitle } from "./references";
+import { acmUrl, decodeText, invertedAbstract, normalizeDoi, publisherAbstract } from "./abstract-sources";
 export type Paper = { id: string; title: string; authors: string; year?: number; doi?: string; url: string; abstract: string | null; source: string; confidence: number; method: string };
 const timeout = 11000;
-export function plain(s = ""): string { return s.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/\s+/g, " ").trim(); }
+export const plain = decodeText;
 async function get(url: string) {
   const r = await fetch(url, { headers: { "User-Agent": "Citepeek/1.0 (academic reference reader)" }, signal: AbortSignal.timeout(timeout) });
   if (!r.ok) throw new Error(`upstream ${r.status}`);
@@ -15,10 +16,11 @@ export function matchScore(title: string, ref: string) {
 }
 function crossref(p: any, ref: string, exact = false): Paper {
   const title = plain(p.title?.[0] || "タイトル未登録");
-  return { id: `doi:${p.DOI}`, title, authors: (p.author || []).slice(0, 5).map((a: any) => [a.given, a.family].filter(Boolean).join(" ")).join(", "), year: p.published?.["date-parts"]?.[0]?.[0], doi: p.DOI, url: `https://doi.org/${p.DOI}`, abstract: p.abstract ? plain(p.abstract) : null, source: "Crossref", confidence: exact ? 1 : matchScore(title, ref), method: exact ? "DOI一致" : "タイトル照合" };
+  return { id: `doi:${p.DOI}`, title, authors: (p.author || []).slice(0, 5).map((a: any) => [a.given, a.family].filter(Boolean).join(" ")).join(", "), year: p.published?.["date-parts"]?.[0]?.[0], doi: p.DOI, url: normalizeDoi(p.DOI).startsWith("10.1145/") ? acmUrl(p.DOI) : `https://doi.org/${p.DOI}`, abstract: p.abstract ? plain(p.abstract) : null, source: "Crossref", confidence: exact ? 1 : matchScore(title, ref), method: exact ? "DOI一致" : "タイトル照合" };
 }
 function semantic(p: any, ref: string, exact = false): Paper {
-  return { id: p.paperId, title: p.title, authors: (p.authors || []).slice(0, 5).map((a: any) => a.name).join(", "), year: p.year, doi: p.externalIds?.DOI, url: p.url || `https://www.semanticscholar.org/paper/${p.paperId}`, abstract: p.abstract || null, source: "Semantic Scholar", confidence: exact ? 1 : matchScore(p.title, ref), method: exact ? "識別子一致" : "タイトル照合" };
+  const doi = p.externalIds?.DOI || (exact ? identifiers(ref).doi : undefined);
+  return { id: p.paperId, title: p.title, authors: (p.authors || []).slice(0, 5).map((a: any) => a.name).join(", "), year: p.year, doi, url: normalizeDoi(doi).startsWith("10.1145/") ? acmUrl(doi!) : p.url || `https://www.semanticscholar.org/paper/${p.paperId}`, abstract: p.abstract || null, source: "Semantic Scholar", confidence: exact ? 1 : matchScore(p.title, ref), method: exact ? "識別子一致" : "タイトル照合" };
 }
 function xmlTag(s: string, tag: string) { return plain(s.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`))?.[1] || ""); }
 async function arxiv(id: string | undefined, title: string, ref: string): Promise<Paper[]> {
@@ -57,9 +59,38 @@ export async function resolveReference(ref: string) {
     papers = results.flat().filter(p => p.confidence >= .45);
     if (!papers.some(p => p.abstract && p.confidence >= .8)) papers.push(...await attempt("arXiv", () => arxiv(undefined, papers.sort((a, b) => b.confidence - a.confidence)[0]?.title || title, ref)));
   }
+  // Metadata providers may disagree on punctuation or subtitles. Merge the
+  // same DOI before choosing a candidate, including complementary abstracts.
+  const merged = new Map<string, Paper>();
+  for (const paper of papers) {
+    const key = normalizeDoi(paper.doi) || paper.title.toLowerCase().replace(/\W/g, "");
+    const previous = merged.get(key);
+    if (!previous) merged.set(key, paper);
+    else if (!previous.abstract && paper.abstract) {
+      previous.abstract = paper.abstract;
+      previous.source += ` / ${paper.source}`;
+    }
+  }
+  papers = [...merged.values()];
   papers.sort((a, b) => b.confidence - a.confidence || Number(!!b.abstract) - Number(!!a.abstract));
   // Fill missing abstracts by DOI without substituting a different paper.
   const best = papers[0];
+  if (best?.doi && !best.abstract) {
+    const doi = normalizeDoi(best.doi);
+    const [openAlex, publisher] = await Promise.all([
+      (async () => {
+        try {
+          const data: any = await (await get(`https://api.openalex.org/works/https://doi.org/${encodeURIComponent(doi)}`)).json();
+          // Exact DOI equality is required; a similarly titled paper is insufficient.
+          return normalizeDoi(data.doi) === doi ? invertedAbstract(data.abstract_inverted_index) : null;
+        } catch { return null; }
+      })(),
+      doi.startsWith("10.1145/") ? publisherAbstract(doi) : Promise.resolve({ abstract: null, warning: undefined }),
+    ]);
+    if (publisher.warning) warnings.push(publisher.warning);
+    if (publisher.abstract) { best.abstract = publisher.abstract; best.source += " / ACM Digital Library"; }
+    else if (openAlex) { best.abstract = openAlex; best.source += " / OpenAlex"; }
+  }
   if (best?.doi && !best.abstract) {
     try {
       const data: any = await (await get(`https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent('DOI:"' + best.doi + '"')}&resultType=core&format=json`)).json();

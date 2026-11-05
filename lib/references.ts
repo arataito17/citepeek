@@ -1,3 +1,4 @@
+import { normalizeDoi } from "./abstract-sources.ts";
 export type Reference = { number: number; text: string; page: number };
 export type PdfLine = { text: string; x: number; y: number; width: number; height: number; page: number };
 
@@ -80,7 +81,7 @@ export function extractReferences(lines: PdfLine[]): Reference[] {
 export function identifiers(text: string) {
   const doi = text.match(/10\.\d{4,9}\/[\w.\-;()/:%+]+/i)?.[0]?.replace(/[.,;:]+$/, "");
   const arxiv = text.match(/(?:arxiv\s*:?\s*|arxiv\.org\/(?:abs|pdf)\/)(\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+\/\d{7})/i)?.[1];
-  return { doi, arxiv };
+  return { doi: normalizeDoi(doi) || undefined, arxiv };
 }
 
 export function guessTitle(text: string): string {

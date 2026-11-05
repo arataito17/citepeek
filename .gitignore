@@ -28,8 +28,22 @@ yarn-error.log*
 
 # Local environment and keys
 .env*
+!.env.local.example
 .dev.vars*
 *.pem
+*.key
+id_ed25519*
+id_rsa*
+*.sock
+
+# Models and inference caches belong to the shared Ollama service, not Git.
+/models/
+/.ollama/
+/.cache/
+*.gguf
+*.safetensors
+*.onnx
+*.log
 
 # Checkout-local tool state
 /.wrangler/

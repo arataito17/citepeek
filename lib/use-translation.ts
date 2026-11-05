@@ -32,18 +32,18 @@ export function useTranslation(text:string|null,allowed:boolean){
     if(!ready||!text||!allowed)return;
     const key=`${settings.mode}:${settings.mode==="ollama"?settings.bridge+settings.model:"opus-or-chrome"}:${text}`,cacheKey="citepeek:translation:"+hash(key),cached=readCache(cacheKey),version=epoch.current;
     if(cached?.key===key){setResult(cached.text);return;}
-    let current=true;setBusy(true);
+    let current=true;const controller=new AbortController();setBusy(true);
     queue.current=queue.current.catch(()=>{}).then(async()=>{
       if(!current||version!==epoch.current)return;
       try{
         let output:string;
-        if(settings.mode==="ollama"){const r=await fetch(new URL(settings.bridge).origin+"/api/translate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,model:settings.model}),signal:AbortSignal.timeout(240000)}),b:any=await r.json();if(!r.ok)throw new Error(b.error||"翻訳に失敗しました。");output=b.translation;}
+        if(settings.mode==="ollama"){const r=await fetch(new URL(settings.bridge).origin+"/api/translate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,model:settings.model}),signal:AbortSignal.any([controller.signal,AbortSignal.timeout(240000)])}),b:any=await r.json();if(!r.ok)throw new Error(b.error||"翻訳に失敗しました。");output=b.translation;}
         else if(translator.current)output=await translator.current.translate(text);
         else output=await new Promise<string>((resolve,reject)=>{if(!worker.current)return reject(new Error("翻訳を再接続してください。"));worker.current.onmessage=e=>{if(e.data.type==="result")resolve(e.data.text);if(e.data.type==="error")reject(new Error(e.data.message));};worker.current.postMessage({type:"translate",text});});
         if(!output?.trim())throw new Error("翻訳結果が空でした。");putCache(cacheKey,{key,text:output});if(current&&version===epoch.current)setResult(output);
       }catch(e:any){if(current)setError(e.message||"翻訳できませんでした。");}finally{if(current)setBusy(false);}
     });
-    return()=>{current=false;};
+    return()=>{current=false;controller.abort();};
   },[ready,text,allowed,settings.mode,settings.bridge,settings.model,retry]);
   return{settings,update,enable,ready,status,error,result,busy,retry:()=>setRetry(n=>n+1)};
 }

@@ -12,11 +12,13 @@ const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':
 async function models(){const r=await fetch(new URL('/api/tags',ollama),{signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('Ollama is unavailable');const b=await r.json();return(b.models||[]).filter(m=>!m.remote_host&&!m.remote_model&&!m.name.includes('cloud')).map(m=>m.name);}
 async function body(req){let size=0;const parts=[];for await(const p of req){size+=p.length;if(size>80000)throw Error('Request too large');parts.push(p);}return JSON.parse(Buffer.concat(parts).toString());}
 http.createServer(async(req,res)=>{
+  const disconnected=new AbortController();
+  res.on("close",()=>{if(!res.writableEnded)disconnected.abort();});
   const origin=req.headers.origin;
   if(!['127.0.0.1','localhost'].includes((req.headers.host||'').split(':')[0])||(origin&&!origins.has(origin))){res.writeHead(403,headers);res.end(JSON.stringify({error:'Origin not allowed'}));return;}
   if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');}
   res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type');res.setHeader('Access-Control-Allow-Private-Network','true');
-  const send=(code,b)=>{res.writeHead(code,headers);res.end(JSON.stringify(b));};
+  const send=(code,b)=>{if(res.destroyed)return;res.writeHead(code,headers);res.end(JSON.stringify(b));};
   const url=new URL(req.url,`http://127.0.0.1:${port}`);
   try{
     if(req.method==='OPTIONS')return send(200,{});
@@ -25,7 +27,7 @@ http.createServer(async(req,res)=>{
     if(url.pathname==='/api/translate'&&req.method==='POST'){
       const b=await body(req);if(typeof b.text!=='string'||!b.text.length||b.text.length>20000||!(await models()).includes(b.model))return send(400,{error:'文面とローカルモデル名を確認してください。'});
       const prompt=`You are a professional English (en) to Japanese (ja) translator. Your goal is to accurately convey the meaning and nuances of the original English text while adhering to Japanese grammar, vocabulary, and cultural sensitivities.\nProduce only the Japanese translation, without any additional explanations or commentary. Please translate the following English text into Japanese:\n\n\n${b.text}`;
-      const r=await fetch(new URL('/api/chat',ollama),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:b.model,messages:[{role:'user',content:prompt}],stream:false,options:{temperature:0,num_predict:4096}}),signal:AbortSignal.timeout(230000)});
+      const r=await fetch(new URL('/api/chat',ollama),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:b.model,messages:[{role:'user',content:prompt}],stream:false,options:{temperature:0,num_predict:4096}}),signal:AbortSignal.any([disconnected.signal,AbortSignal.timeout(230000)])});
       const value=await r.json();if(!r.ok||!value.message?.content||value.done_reason==='length')return send(502,{error:'翻訳できませんでした。Ollamaのモデルを確認してください。'});return send(200,{translation:value.message.content});
     }
     if(url.pathname==='/api/demo'&&req.method==='GET'){const r=await fetch('https://arxiv.org/pdf/1706.03762',{signal:AbortSignal.timeout(25000)});if(!r.ok)return send(502,{error:'サンプル取得に失敗しました。'});res.writeHead(200,{'Content-Type':'application/pdf'});res.end(Buffer.from(await r.arrayBuffer()));return;}
