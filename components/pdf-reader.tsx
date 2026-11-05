@@ -2,7 +2,7 @@
 import {useEffect,useRef,useState} from "react";
 import {LoaderCircle,Minus,Plus,ScanLine} from "lucide-react";
 import type {Reference} from "@/lib/references";
-import {citationTokens,clampZoom,cleanSelection} from "@/lib/pdf-interactions";
+import {citationTokens,clampZoom,cleanSelection,ZOOM_STEP,ZOOM_GESTURE_GAIN} from "@/lib/pdf-interactions";
 const CDN="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";
 let module:Promise<any>|undefined;
 export const loadPdf=()=>module||=import(/* @vite-ignore */ CDN).then(m=>{m.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";return m;});
@@ -54,10 +54,10 @@ export default function PdfReader({doc,page,zoom,refs,active,onZoom,onSelect,onT
     const wheel=(event:WheelEvent)=>{
       if(!event.ctrlKey&&!event.metaKey)return;
       event.preventDefault();if(gesture.current.active)return;
-      requestZoom(zoomValue.current*Math.exp(-event.deltaY*.008),event.clientX,event.clientY);
+      requestZoom(zoomValue.current*Math.exp(-event.deltaY*.008*ZOOM_GESTURE_GAIN),event.clientX,event.clientY);
     };
     const start=(event:any)=>{event.preventDefault();gesture.current={active:true,start:zoomValue.current};stopHover();};
-    const change=(event:any)=>{event.preventDefault();requestZoom(gesture.current.start*event.scale,event.clientX||undefined,event.clientY||undefined);};
+    const change=(event:any)=>{event.preventDefault();requestZoom(gesture.current.start*Math.pow(event.scale,ZOOM_GESTURE_GAIN),event.clientX||undefined,event.clientY||undefined);};
     const end=(event:any)=>{event.preventDefault();gesture.current.active=false;};
     root.addEventListener('wheel',wheel,{passive:false});root.addEventListener('gesturestart',start,{passive:false});root.addEventListener('gesturechange',change,{passive:false});root.addEventListener('gestureend',end,{passive:false});
     return()=>{root.removeEventListener('wheel',wheel);root.removeEventListener('gesturestart',start);root.removeEventListener('gesturechange',change);root.removeEventListener('gestureend',end);};
@@ -146,7 +146,7 @@ export default function PdfReader({doc,page,zoom,refs,active,onZoom,onSelect,onT
     return()=>{cancelled=true;task?.cancel?.();textLayer?.cancel?.();clearTimeout(hoverTimer.current);};
   },[doc,page,zoom,refs,width]);
   return <section className="pdf-pane" ref={pane} aria-label="PDFリーダー">
-    <div className="pdf-toolbar"><span className="pdf-gesture-hint">ピンチ / ⌘・Ctrl＋ホイールで拡大縮小</span><div className="pdf-zoom-controls"><button className="icon-button" aria-label="PDFを縮小" disabled={zoom<=.5} onClick={()=>requestZoom(zoomValue.current-.1)}><Minus size={15}/></button><output aria-label="PDFの倍率">{Math.round(zoom*100)}%</output><button className="icon-button" aria-label="PDFを拡大" disabled={zoom>=3} onClick={()=>requestZoom(zoomValue.current+.1)}><Plus size={15}/></button><button className="text-button fit-page" onClick={()=>requestZoom(1)}><ScanLine size={14}/>幅に合わせる</button></div></div>
+    <div className="pdf-toolbar"><span className="pdf-gesture-hint">ピンチ / ⌘・Ctrl＋ホイールで拡大縮小</span><div className="pdf-zoom-controls"><button className="icon-button" aria-label="PDFを縮小" disabled={zoom<=.5} onClick={()=>requestZoom(zoomValue.current-ZOOM_STEP)}><Minus size={15}/></button><output aria-label="PDFの倍率">{Math.round(zoom*100)}%</output><button className="icon-button" aria-label="PDFを拡大" disabled={zoom>=3} onClick={()=>requestZoom(zoomValue.current+ZOOM_STEP)}><Plus size={15}/></button><button className="text-button fit-page" onClick={()=>requestZoom(1)}><ScanLine size={14}/>幅に合わせる</button></div></div>
     <div className="pdf-viewport" ref={viewport}>
       <div className={`pdf-sheet${hovered!==null&&!down.current?' citation-hover':''}`} ref={sheet} style={size}
         onPointerDown={event=>{if(event.button===0){down.current={x:event.clientX,y:event.clientY};lastSelection.current='';stopHover();}}}

@@ -1,4 +1,6 @@
 import {citationNumbers} from './references.ts';
+export const ZOOM_STEP=.25;
+export const ZOOM_GESTURE_GAIN=2.5;
 export type CitationToken={start:number;end:number;number:number;group:number[]};
 export function citationTokens(text:string,valid:Iterable<number>):CitationToken[]{
   const allowed=new Set(valid),tokens:CitationToken[]=[];

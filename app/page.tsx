@@ -4,7 +4,7 @@ import {ArrowUpRight,ArrowRight,BookOpen,Check,ChevronLeft,ChevronRight,CircleHe
 import PdfReader,{loadPdf} from "@/components/pdf-reader";
 import {extractReferences,identifiers,orderedLines,type Reference,type PdfLine} from "@/lib/references";
 import {useTranslation,readCache,putCache,hash} from "@/lib/use-translation";
-import {pageDelta,clampZoom} from "@/lib/pdf-interactions";
+import {pageDelta,clampZoom,ZOOM_STEP} from "@/lib/pdf-interactions";
 import type {Paper} from "@/lib/papers";
 type Result={papers:Paper[];warnings:string[];error?:string};
 export default function Home(){
@@ -25,7 +25,7 @@ export default function Home(){
       const target=event.target instanceof Element?event.target:null;
       if(target?.closest('input,textarea,select,[contenteditable="true"],[role="textbox"]'))return;
       if(event.ctrlKey||event.metaKey){
-        if(['+','=','-','0'].includes(event.key)){event.preventDefault();setZoom(z=>event.key==='0'?1:clampZoom(z+(event.key==='-'?-.1:.1)));}
+        if(['+','=','-','0'].includes(event.key)){event.preventDefault();setZoom(z=>event.key==='0'?1:clampZoom(z+(event.key==='-'?-ZOOM_STEP:ZOOM_STEP)));}
         return;
       }
       if(event.shiftKey)return;
