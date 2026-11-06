@@ -2,6 +2,14 @@
 
 PDFの引用番号に触れると、引用先論文のアブストラクトと日本語訳を表示する論文リーダーです。本文の一部をドラッグ選択して翻訳することもできます。GPT APIは使用しません。
 
+## 先行研究
+
+PDF内の引用を対話的に探索し、引用先のメタデータやアブストラクトを読書画面内で提示する先行研究として、以下の論文を挙げます。
+
+- Yasaman A. Basti, Heidar Davoudi, and Ali Neshati. 2025. **[CitePeek: Contextual Citation Exploration Within Research Papers](https://doi.org/10.1145/3719160.3737639)**. Proceedings of the 7th ACM Conference on Conversational User Interfaces (CUI '25), Article 20, 1–7. DOI: `10.1145/3719160.3737639`.
+
+本ツールの名称と、引用番号から引用先の情報をその場で確認する基本的な仕組みは、同研究と重なっています。同研究は、引用文脈に応じた情報提示、関連箇所のハイライト、関連論文ネットワークも扱っています。本実装では、英日翻訳をブラウザ内またはローカルOllamaで実行する読書支援に重点を置いています。
+
 ## MacでWeb画面とブラウザ内翻訳を動かす
 
 GPUに接続できなくても、MacでPDFを読み、ブラウザ内で和訳できます。GPU翻訳を選んだ場合だけ、同じGPU上のOllamaを共有します。
